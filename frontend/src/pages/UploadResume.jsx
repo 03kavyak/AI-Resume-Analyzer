@@ -1,41 +1,124 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../services/api";
 
 function UploadResume() {
   const navigate = useNavigate();
+  const fileInputRef = useRef(null);
 
   const [file, setFile] = useState(null);
+  const [dragActive, setDragActive] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const handleFileChange = (event) => {
-    const selectedFile = event.target.files[0];
+  const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
+  const validateFile = (selectedFile) => {
+    if (!selectedFile) {
+      return "Please select a resume.";
+    }
+
+    const fileName =
+      selectedFile.name.toLowerCase();
+
+    if (
+      !fileName.endsWith(".pdf") &&
+      !fileName.endsWith(".docx")
+    ) {
+      return "Only PDF and DOCX files are supported.";
+    }
+
+    if (selectedFile.size > MAX_FILE_SIZE) {
+      return "File size must be less than 10 MB.";
+    }
+
+    if (selectedFile.size === 0) {
+      return "The selected file is empty.";
+    }
+
+    return "";
+  };
+
+  const selectFile = (selectedFile) => {
     setError("");
 
-    if (!selectedFile) {
+    const validationError =
+      validateFile(selectedFile);
+
+    if (validationError) {
       setFile(null);
+      setError(validationError);
       return;
     }
-
-    const fileName = selectedFile.name.toLowerCase();
-
-    if (!fileName.endsWith(".pdf") && !fileName.endsWith(".docx")) {
-      setError("Please upload a PDF or DOCX file.");
-      setFile(null);
-      return;
-    }
-
-    if (selectedFile.size > 10 * 1024 * 1024) {
-      setError("File size must be less than 10 MB.");
-      setFile(null);
-      return;
-    }
-
-    console.log("Selected file:", selectedFile);
 
     setFile(selectedFile);
+  };
+
+  const handleFileChange = (event) => {
+    const selectedFile =
+      event.target.files?.[0];
+
+    if (selectedFile) {
+      selectFile(selectedFile);
+    }
+  };
+
+  const handleDrop = (event) => {
+    event.preventDefault();
+    setDragActive(false);
+
+    const droppedFile =
+      event.dataTransfer.files?.[0];
+
+    if (droppedFile) {
+      selectFile(droppedFile);
+    }
+  };
+
+  const handleDragOver = (event) => {
+    event.preventDefault();
+    setDragActive(true);
+  };
+
+  const handleDragLeave = () => {
+    setDragActive(false);
+  };
+
+  const handleBrowse = () => {
+    fileInputRef.current?.click();
+  };
+
+  const removeFile = () => {
+    setFile(null);
+    setError("");
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  const formatFileSize = (bytes) => {
+    if (bytes < 1024) {
+      return `${bytes} B`;
+    }
+
+    if (bytes < 1024 * 1024) {
+      return `${(bytes / 1024).toFixed(1)} KB`;
+    }
+
+    return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
+  };
+
+  const getFileType = (fileName) => {
+    if (
+      fileName
+        .toLowerCase()
+        .endsWith(".pdf")
+    ) {
+      return "PDF";
+    }
+
+    return "DOCX";
   };
 
   const handleAnalyze = async () => {
@@ -48,25 +131,19 @@ function UploadResume() {
     setError("");
 
     try {
-      // Get logged-in user
-      const storedUser = sessionStorage.getItem("user");
+      const storedUser =
+        sessionStorage.getItem("user");
 
       if (!storedUser) {
-        setError("Please login before analyzing your resume.");
-        setLoading(false);
+        navigate("/login");
         return;
       }
 
       const user = JSON.parse(storedUser);
 
-      console.log("Logged-in user:", user);
-
       const formData = new FormData();
 
-      // Add resume
       formData.append("resume", file);
-
-      // Add user ID
       formData.append("user_id", user.id);
 
       console.log("Uploading:", file.name);
@@ -78,18 +155,20 @@ function UploadResume() {
       );
 
       console.log(
-        "Backend response:",
+        "Analysis response:",
         response.data
       );
 
-      if (response.data.status !== "success") {
+      if (
+        response.data.status !==
+        "success"
+      ) {
         throw new Error(
           response.data.message ||
-          "Resume analysis failed."
+            "Resume analysis failed."
         );
       }
 
-      // Save analysis result
       sessionStorage.setItem(
         "analysisResult",
         JSON.stringify(response.data)
@@ -99,107 +178,439 @@ function UploadResume() {
 
     } catch (err) {
       console.error(
-        "Analysis error:",
+        "Resume analysis error:",
         err
       );
 
       if (err.response) {
         setError(
           err.response.data?.message ||
-          "Backend analysis failed."
+            "Resume analysis failed."
         );
       } else {
         setError(
           err.message ||
-          "Could not connect to backend."
+            "Could not connect to backend."
         );
       }
-
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="upload-page">
+    <div className="upload-pro-page">
 
-      <div className="upload-container">
+      {/* ===============================
+          HEADER
+      =============================== */}
 
-        <h1>Upload Your Resume</h1>
+      <header className="upload-pro-header">
 
-        <p>
-          Upload your resume to analyze its ATS compatibility,
-          skills, structure and content.
-        </p>
+        <button
+          className="upload-back-button"
+          onClick={() =>
+            navigate("/dashboard")
+          }
+        >
+          ←
+        </button>
 
-        <div className="upload-box">
+        <div className="upload-pro-brand">
 
-          {/* FILE INPUT */}
+          <div className="upload-brand-mark">
+            R
+          </div>
 
-          <label className="file-label">
-            Choose Resume
+          <div>
+            Resume<span>AI</span>
 
-            <input
-              type="file"
-              accept=".pdf,.docx"
-              onChange={handleFileChange}
-            />
-          </label>
-
-
-          {/* SELECTED FILE */}
-
-          {file && (
-            <div className="selected-file">
-
-              <strong>
-                Selected Resume
-              </strong>
-
-              <p>
-                {file.name}
-              </p>
-
-              <small>
-                {(file.size / 1024 / 1024).toFixed(2)} MB
-              </small>
-
-            </div>
-          )}
-
-
-          {!file && (
-            <p className="upload-hint">
-              Supported formats: PDF, DOCX
-            </p>
-          )}
-
-
-          {/* ERROR */}
-
-          {error && (
-            <div className="error-message">
-              {error}
-            </div>
-          )}
-
-
-          {/* ANALYZE BUTTON */}
-
-          <button
-            type="button"
-            className="primary-button"
-            onClick={handleAnalyze}
-            disabled={!file || loading}
-          >
-            {loading
-              ? "Analyzing Resume..."
-              : "Analyze Resume"}
-          </button>
+            <small>
+              Resume Intelligence
+            </small>
+          </div>
 
         </div>
 
-      </div>
+        <div className="upload-header-status">
+          Secure analysis
+        </div>
+
+      </header>
+
+
+      {/* ===============================
+          MAIN
+      =============================== */}
+
+      <main className="upload-pro-main">
+
+        <div className="upload-pro-intro">
+
+          <div className="upload-pro-badge">
+            RESUME ANALYSIS
+          </div>
+
+          <h1>
+            Upload your resume
+          </h1>
+
+          <p>
+            Get a detailed analysis of your
+            resume's ATS compatibility, skills,
+            structure and content.
+          </p>
+
+        </div>
+
+
+        <div className="upload-pro-grid">
+
+          {/* ==========================
+              UPLOAD CARD
+          ========================== */}
+
+          <section className="upload-pro-card">
+
+            {!file ? (
+
+              <div
+                className={`upload-drop-zone ${
+                  dragActive
+                    ? "drag-active"
+                    : ""
+                }`}
+                onClick={handleBrowse}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+              >
+
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".pdf,.docx"
+                  onChange={handleFileChange}
+                  hidden
+                />
+
+                <div className="upload-cloud-icon">
+                  ↑
+                </div>
+
+                <h2>
+                  Drop your resume here
+                </h2>
+
+                <p>
+                  or click to browse from your
+                  computer
+                </p>
+
+                <div className="upload-format-row">
+
+                  <span>
+                    PDF
+                  </span>
+
+                  <span>
+                    DOCX
+                  </span>
+
+                  <small>
+                    Max 10 MB
+                  </small>
+
+                </div>
+
+              </div>
+
+            ) : (
+
+              <div className="selected-resume-card">
+
+                <div className="selected-resume-top">
+
+                  <div className="selected-file-icon">
+                    {getFileType(file.name)}
+                  </div>
+
+                  <div className="selected-file-info">
+
+                    <strong>
+                      {file.name}
+                    </strong>
+
+                    <span>
+                      {formatFileSize(
+                        file.size
+                      )}{" "}
+                      • Ready to analyze
+                    </span>
+
+                  </div>
+
+                  <button
+                    className="remove-file-button"
+                    onClick={removeFile}
+                    type="button"
+                  >
+                    ×
+                  </button>
+
+                </div>
+
+
+                <div className="file-ready-message">
+
+                  <span>
+                    ✓
+                  </span>
+
+                  <div>
+                    <strong>
+                      Resume ready
+                    </strong>
+
+                    <p>
+                      Your file passed the
+                      format and size checks.
+                    </p>
+                  </div>
+
+                </div>
+
+
+                <button
+                  className="change-file-button"
+                  onClick={handleBrowse}
+                  type="button"
+                >
+                  Choose a different file
+                </button>
+
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".pdf,.docx"
+                  onChange={handleFileChange}
+                  hidden
+                />
+
+              </div>
+
+            )}
+
+
+            {/* ERROR */}
+
+            {error && (
+
+              <div className="upload-error">
+
+                <span>!</span>
+
+                <p>
+                  {error}
+                </p>
+
+              </div>
+
+            )}
+
+
+            {/* ANALYZE */}
+
+            <button
+              className="upload-analyze-button"
+              onClick={handleAnalyze}
+              disabled={
+                !file || loading
+              }
+            >
+
+              {loading ? (
+
+                <>
+                  <span className="upload-spinner"></span>
+
+                  Analyzing your resume...
+                </>
+
+              ) : (
+
+                <>
+                  Analyze Resume
+                  <span>→</span>
+                </>
+
+              )}
+
+            </button>
+
+
+            <p className="upload-privacy-note">
+              Your resume is processed to generate
+              analysis and insights.
+            </p>
+
+          </section>
+
+
+          {/* ==========================
+              WHAT YOU GET
+          ========================== */}
+
+          <section className="upload-benefits-card">
+
+            <div className="upload-benefits-heading">
+
+              <span>
+                WHAT YOU'LL GET
+              </span>
+
+              <h2>
+                Understand your resume
+              </h2>
+
+              <p>
+                Our analyzer checks the areas
+                recruiters and ATS systems care
+                about.
+              </p>
+
+            </div>
+
+
+            <div className="upload-benefit-list">
+
+              <div className="upload-benefit">
+
+                <div className="benefit-icon purple">
+                  %
+                </div>
+
+                <div>
+                  <strong>
+                    Overall Resume Score
+                  </strong>
+
+                  <span>
+                    See how strong your resume is.
+                  </span>
+                </div>
+
+              </div>
+
+
+              <div className="upload-benefit">
+
+                <div className="benefit-icon blue">
+                  ✓
+                </div>
+
+                <div>
+                  <strong>
+                    ATS Compatibility
+                  </strong>
+
+                  <span>
+                    Find formatting and keyword issues.
+                  </span>
+                </div>
+
+              </div>
+
+
+              <div className="upload-benefit">
+
+                <div className="benefit-icon green">
+                  ◆
+                </div>
+
+                <div>
+                  <strong>
+                    Skills Analysis
+                  </strong>
+
+                  <span>
+                    Identify strong and missing skills.
+                  </span>
+                </div>
+
+              </div>
+
+
+              <div className="upload-benefit">
+
+                <div className="benefit-icon orange">
+                  ↗
+                </div>
+
+                <div>
+                  <strong>
+                    Improvement Suggestions
+                  </strong>
+
+                  <span>
+                    Get actionable recommendations.
+                  </span>
+                </div>
+
+              </div>
+
+            </div>
+
+
+            <div className="upload-tip-card">
+
+              <div>
+                ✦
+              </div>
+
+              <p>
+                <strong>
+                  Tip
+                </strong>
+
+                Use your most recent resume
+                version for the most useful
+                analysis.
+              </p>
+
+            </div>
+
+          </section>
+
+        </div>
+
+
+        {/* PROCESS */}
+
+        <div className="upload-process">
+
+          <div className="process-step active">
+            <span>1</span>
+            Upload
+          </div>
+
+          <div className="process-line"></div>
+
+          <div className="process-step">
+            <span>2</span>
+            Analyze
+          </div>
+
+          <div className="process-line"></div>
+
+          <div className="process-step">
+            <span>3</span>
+            Improve
+          </div>
+
+        </div>
+
+      </main>
 
     </div>
   );

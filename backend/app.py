@@ -11,6 +11,7 @@ from database import db, ResumeAnalysis, User
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask import send_file
 from report_generator import generate_report
+import json
 
 app = Flask(__name__)
 CORS(app)
@@ -23,9 +24,7 @@ db.init_app(app)
 with app.app_context():
     db.create_all()
 
-# ---------------------------------------
 # Upload configuration
-# ---------------------------------------
 
 UPLOAD_FOLDER = "uploads"
 ALLOWED_EXTENSIONS = {".pdf", ".docx"}
@@ -36,10 +35,7 @@ app.config["MAX_CONTENT_LENGTH"] = MAX_FILE_SIZE
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-
-# ---------------------------------------
 # Home
-# ---------------------------------------
 
 @app.route("/")
 def home():
@@ -47,10 +43,7 @@ def home():
         "message": "AI Resume Analyzer Backend is running!"
     })
 
-
-# ---------------------------------------
 # Health check
-# ---------------------------------------
 
 @app.route("/api/health")
 def health():
@@ -59,17 +52,12 @@ def health():
         "message": "Backend connected successfully"
     })
 
-
-# ---------------------------------------
 # Resume Analysis
-# ---------------------------------------
 
 @app.route("/api/analyze", methods=["POST"])
 def analyze():
 
-    # ---------------------------------------
     # Check if resume was provided
-    # ---------------------------------------
 
     if "resume" not in request.files:
         return jsonify({
@@ -80,9 +68,7 @@ def analyze():
     file = request.files["resume"]
     user_id = request.form.get("user_id")
 
-    # ---------------------------------------
     # Validate user ID
-    # ---------------------------------------
 
     if not user_id:
         return jsonify({
@@ -99,6 +85,7 @@ def analyze():
         }), 400
 
     # Check that user actually exists
+    
     user = User.query.get(user_id)
 
     if not user:
@@ -107,9 +94,7 @@ def analyze():
             "message": "User not found."
         }), 404
 
-    # ---------------------------------------
     # Check filename
-    # ---------------------------------------
 
     if file.filename == "":
         return jsonify({
@@ -117,15 +102,11 @@ def analyze():
             "message": "No file selected."
         }), 400
 
-    # ---------------------------------------
     # Secure filename
-    # ---------------------------------------
 
     filename = secure_filename(file.filename)
 
-    # ---------------------------------------
     # Check file extension
-    # ---------------------------------------
 
     extension = os.path.splitext(filename)[1].lower()
 
@@ -135,24 +116,19 @@ def analyze():
             "message": "Invalid file type. Please upload a PDF or DOCX file."
         }), 400
 
-    # ---------------------------------------
     # Save uploaded file
-    # ---------------------------------------
 
     file_path = os.path.join(
         app.config["UPLOAD_FOLDER"],
         filename
     )
-
     try:
 
         file.save(file_path)
 
         print(f"Resume saved: {file_path}")
 
-        # ---------------------------------------
         # Extract resume text
-        # ---------------------------------------
 
         resume_text = extract_text(file_path)
 
@@ -165,9 +141,7 @@ def analyze():
         print("Resume text extracted successfully.")
         print(f"Extracted characters: {len(resume_text)}")
 
-        # ---------------------------------------
         # Analyze resume
-        # ---------------------------------------
 
         print("Sending resume to AI analyzer...")
 
@@ -175,30 +149,23 @@ def analyze():
 
         print("AI analysis completed successfully.")
 
-        # ---------------------------------------
         # Save complete analysis to database
-        # ---------------------------------------
-
-        import json
 
         saved_analysis = ResumeAnalysis(
-            user_id=user_id,
-            resume_name=filename,
-
-            # Store complete resume text
-            resume_text=resume_text,
-
-            # Store complete analysis result
-            analysis_data=json.dumps(analysis),
-
-            # Store important scores separately
-            overall_score=analysis.get("overall_score", 0),
-            ats_score=analysis.get("ats_score", 0),
-            content_score=analysis.get("content_score", 0),
-            structure_score=analysis.get("structure_score", 0),
-            readability_score=analysis.get("readability_score", 0),
-            quantifiable_score=analysis.get("quantifiable_score", 0)
-        )
+    user_id=user_id,
+    resume_name=filename,
+    overall_score=analysis.get("overall_score", 0),
+    ats_score=analysis.get("ats_score", 0),
+    content_score=analysis.get("content_score", 0),
+    structure_score=analysis.get("structure_score", 0),
+    readability_score=analysis.get("readability_score", 0),
+    quantifiable_score=analysis.get("quantifiable_score", 0),
+    analysis_json=json.dumps({
+        "filename": filename,
+        "resume_text": resume_text,
+        "analysis": analysis
+    })
+)
 
         db.session.add(saved_analysis)
         db.session.commit()
@@ -207,9 +174,7 @@ def analyze():
             f"Analysis saved successfully. ID: {saved_analysis.id}"
         )
 
-        # ---------------------------------------
         # Return result
-        # ---------------------------------------
 
         return jsonify({
             "status": "success",
@@ -238,13 +203,7 @@ def analyze():
 
 @app.route("/api/analysis/<int:analysis_id>", methods=["GET"])
 def get_analysis(analysis_id):
-
     try:
-
-        # ---------------------------------------
-        # Get user ID
-        # ---------------------------------------
-
         user_id = request.args.get("user_id")
 
         if not user_id:
@@ -261,60 +220,52 @@ def get_analysis(analysis_id):
                 "message": "Invalid user ID."
             }), 400
 
-        # ---------------------------------------
-        # Find analysis belonging to this user
-        # ---------------------------------------
-
-        analysis_record = ResumeAnalysis.query.filter_by(
+        # Fetch only this user's requested analysis
+        record = ResumeAnalysis.query.filter_by(
             id=analysis_id,
             user_id=user_id
         ).first()
 
-        if not analysis_record:
+        if not record:
             return jsonify({
                 "status": "error",
                 "message": "Analysis not found."
             }), 404
 
-        # ---------------------------------------
-        # Convert saved JSON back to dictionary
-        # ---------------------------------------
+        # The analyze route currently saves the full report here
+        saved_data = {}
 
-        import json
+        if record.analysis_json:
+            saved_data = json.loads(record.analysis_json)
+        elif record.analysis_data:
+            # Backward compatibility with older records
+            saved_data = json.loads(record.analysis_data)
 
-        analysis_data = {}
-
-        if analysis_record.analysis_data:
-            analysis_data = json.loads(
-                analysis_record.analysis_data
-            )
-
-        # ---------------------------------------
-        # Return historical analysis
-        # ---------------------------------------
+        # Support both the new and older storage formats
+        if isinstance(saved_data.get("analysis"), dict):
+            analysis_result = saved_data["analysis"]
+        else:
+            analysis_result = saved_data
 
         return jsonify({
             "status": "success",
-
-            "analysis_id": analysis_record.id,
-
-            "filename": analysis_record.resume_name,
-
-            "resume_text": analysis_record.resume_text or "",
-
-            "analysis": analysis_data,
-
+            "analysis_id": record.id,
+            "filename": saved_data.get(
+                "filename",
+                record.resume_name
+            ),
+            "resume_text": saved_data.get(
+                "resume_text",
+                record.resume_text or ""
+            ),
+            "analysis": analysis_result,
             "created_at": (
-                analysis_record.created_at.strftime(
-                    "%Y-%m-%d %H:%M"
-                )
-                if analysis_record.created_at
-                else ""
+                record.created_at.strftime("%Y-%m-%d %H:%M")
+                if record.created_at else ""
             )
         }), 200
 
     except Exception as e:
-
         print("GET ANALYSIS ERROR:", str(e))
 
         return jsonify({
@@ -327,10 +278,7 @@ def get_analysis(analysis_id):
 def download_report(analysis_id):
 
     try:
-
-        # ---------------------------------------
         # Get user ID
-        # ---------------------------------------
 
         user_id = request.args.get("user_id")
 
@@ -348,9 +296,7 @@ def download_report(analysis_id):
                 "message": "Invalid user ID."
             }), 400
 
-        # ---------------------------------------
         # Find analysis belonging to user
-        # ---------------------------------------
 
         analysis_record = ResumeAnalysis.query.filter_by(
             id=analysis_id,
@@ -364,9 +310,7 @@ def download_report(analysis_id):
                 "message": "Analysis not found."
             }), 404
 
-        # ---------------------------------------
         # Load analysis JSON
-        # ---------------------------------------
 
         import json
 
@@ -381,9 +325,7 @@ def download_report(analysis_id):
             analysis_record.analysis_data
         )
 
-        # ---------------------------------------
         # Create report filename
-        # ---------------------------------------
 
         safe_name = os.path.splitext(
             analysis_record.resume_name
@@ -398,9 +340,7 @@ def download_report(analysis_id):
             report_filename
         )
 
-        # ---------------------------------------
         # Generate PDF
-        # ---------------------------------------
 
         generate_report(
             output_path=report_path,
@@ -419,9 +359,7 @@ def download_report(analysis_id):
             f"PDF report generated: {report_path}"
         )
 
-        # ---------------------------------------
         # Send PDF
-        # ---------------------------------------
 
         return send_file(
             report_path,
@@ -442,8 +380,7 @@ def download_report(analysis_id):
             "message": "Could not generate report.",
             "error": str(e)
         }), 500
-        
-        
+             
 @app.route("/api/match-job", methods=["POST"])
 def match_job():
 
@@ -496,7 +433,6 @@ def match_job():
             "error": str(e)
         }), 500
         
-
 @app.route("/api/history", methods=["GET"])
 def history():
 
@@ -545,8 +481,7 @@ def history():
         "status": "success",
         "history": history_data
     })
-    
-    
+
 @app.route("/api/signup", methods=["POST"])
 def signup():
 
@@ -658,8 +593,7 @@ def login():
             "status": "error",
             "message": "Login failed."
         }), 500
-        
-        
+         
 @app.route("/api/dashboard", methods=["GET"])
 def dashboard():
     try:
@@ -793,9 +727,9 @@ def dashboard():
             "message": "Could not load dashboard.",
             "error": str(e)
         }), 500
-# ---------------------------------------
+
+
 # Run Flask
-# ---------------------------------------
 
 if __name__ == "__main__":
     app.run(

@@ -1,6 +1,29 @@
 import { useEffect, useState } from "react";
-import api from "../services/api";
 import { useNavigate } from "react-router-dom";
+
+function ScoreCard({ title, score, description }) {
+  const safeScore = Math.min(100, Math.max(0, Number(score) || 0));
+
+  return (
+    <div className="analysis-score-card">
+      <div className="score-card-top">
+        <span>{title}</span>
+        <div className="mini-score">
+          {safeScore}
+        </div>
+      </div>
+
+      <div className="score-progress">
+        <div
+          className="score-progress-fill"
+          style={{ width: `${safeScore}%` }}
+        ></div>
+      </div>
+
+      <p>{description}</p>
+    </div>
+  );
+}
 
 function Analysis() {
   const navigate = useNavigate();
@@ -8,501 +31,579 @@ function Analysis() {
   const [result, setResult] = useState(null);
 
   useEffect(() => {
-    console.log("Analysis page loaded.");
-
     const storedResult = sessionStorage.getItem("analysisResult");
 
-    console.log("Session storage result:", storedResult);
-
     if (!storedResult) {
-      console.log("No analysis found in sessionStorage.");
-
       navigate("/upload");
       return;
     }
 
     try {
-      const parsedResult = JSON.parse(storedResult);
-
-      console.log("Parsed analysis result:", parsedResult);
-
-      setResult(parsedResult);
+      setResult(JSON.parse(storedResult));
     } catch (error) {
-      console.error("JSON parsing failed:", error);
-
-      sessionStorage.removeItem("analysisResult");
-
+      console.error("Failed to load analysis:", error);
       navigate("/upload");
     }
   }, [navigate]);
 
-  const handleDownloadReport = async () => {
-    try {
-      const storedUser = sessionStorage.getItem("user");
-
-      if (!storedUser) {
-        alert("Please login first.");
-        return;
-      }
-
-      const user = JSON.parse(storedUser);
-
-      if (!result?.analysis_id) {
-        alert("This analysis cannot be downloaded.");
-        return;
-      }
-
-      console.log("Downloading report for analysis:", result.analysis_id);
-
-      const response = await api.get(
-        `/analysis/${result.analysis_id}/report?user_id=${user.id}`,
-        {
-          responseType: "blob",
-        },
-      );
-
-      const blob = new Blob([response.data], {
-        type: "application/pdf",
-      });
-
-      const url = window.URL.createObjectURL(blob);
-
-      const link = document.createElement("a");
-
-      link.href = url;
-
-      link.download = `${result.filename || "resume"}_Analysis.pdf`;
-
-      document.body.appendChild(link);
-
-      link.click();
-
-      link.remove();
-
-      window.URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error("Download report error:", error);
-
-      alert("Could not download the report.");
-    }
-  };
-  // ---------------------------------------
-  // Loading
-  // ---------------------------------------
-
   if (!result) {
     return (
-      <div className="analysis-page">
-        <div className="analysis-container">
-          <div className="analysis-loading">
-            <h2>Loading Analysis...</h2>
-            <p>Please wait while we prepare your resume report.</p>
-          </div>
-        </div>
+      <div className="analysis-loading">
+        <div className="analysis-loader"></div>
+        <p>Loading your resume analysis...</p>
       </div>
     );
   }
 
   const analysis = result.analysis || {};
 
-  // ---------------------------------------
-  // Helper
-  // ---------------------------------------
+  const overallScore = Number(analysis.overall_score) || 0;
+  const atsScore = Number(analysis.ats_score) || 0;
 
-  const scoreClass = (score) => {
-    if (score >= 80) return "score-good";
-    if (score >= 60) return "score-average";
-    return "score-low";
+  const technicalSkills = analysis.technical_skills || [];
+  const softSkills = analysis.soft_skills || [];
+  const missingKeywords = analysis.missing_keywords || [];
+  const strengths = analysis.strengths || [];
+  const weaknesses = analysis.weaknesses || [];
+  const atsIssues = analysis.ats_issues || [];
+  const atsSuggestions = analysis.ats_suggestions || [];
+  const improvements = analysis.improvements || [];
+
+  const handleJobMatch = () => {
+    navigate("/job-match");
+  };
+
+  const handleNewAnalysis = () => {
+    sessionStorage.removeItem("analysisResult");
+    navigate("/upload");
+  };
+
+  const getScoreLabel = (score) => {
+    if (score >= 80) return "Excellent";
+    if (score >= 65) return "Good";
+    if (score >= 50) return "Needs Improvement";
+    return "Needs Attention";
   };
 
   return (
     <div className="analysis-page">
-      <div className="analysis-container">
-        {/* ================================= */}
-        {/* Header */}
-        {/* ================================= */}
 
-        <div className="analysis-header">
+      {/* Header */}
+      <header className="analysis-header">
+
+        <div
+          className="analysis-brand"
+          onClick={() => navigate("/dashboard")}
+        >
+          <div className="analysis-brand-icon">
+            ✦
+          </div>
+
           <div>
-            <button
-              className="back-button"
-              onClick={() => navigate("/history")}
-            >
-              ← Back to History
-            </button>
+            <h2>ResumeAI</h2>
+            <span>AI Resume Intelligence</span>
+          </div>
+        </div>
 
-            <h1>Resume Analysis</h1>
+        <div className="analysis-header-actions">
 
-            <p className="analysis-subtitle">
-              Detailed analysis of your resume
+          <button
+            className="analysis-secondary-btn"
+            onClick={() => navigate("/dashboard")}
+          >
+            ← Dashboard
+          </button>
+
+          <button
+            className="analysis-primary-btn"
+            onClick={handleNewAnalysis}
+          >
+            + Analyze New Resume
+          </button>
+
+        </div>
+
+      </header>
+
+      {/* Main */}
+      <main className="analysis-container">
+
+        {/* Page Intro */}
+        <section className="analysis-intro">
+
+          <div>
+            <span className="analysis-eyebrow">
+              AI RESUME ANALYSIS
+            </span>
+
+            <h1>
+              Your Resume Analysis
+            </h1>
+
+            <p>
+              Here's how your resume performs across ATS compatibility,
+              content quality, structure and readability.
             </p>
-          </div>
 
-          <div className="analysis-actions">
-            <button
-              className="secondary-button"
-              onClick={() => navigate("/job-match")}
-            >
-              Match With Job
-            </button>
-
-            <button
-              className="primary-button"
-              onClick={() => navigate("/upload")}
-            >
-              Analyze New Resume
-            </button>
-          </div>
-        </div>
-
-        {/* ================================= */}
-        {/* Resume Information */}
-        {/* ================================= */}
-
-        <div className="resume-info-card">
-          <div>
-            <span className="info-label">Resume</span>
-
-            <h2>{result.filename || result.resume_name || "Resume"}</h2>
-          </div>
-
-          {result.created_at && (
-            <div>
-              <span className="info-label">Analyzed On</span>
-
-              <p>{result.created_at}</p>
+            <div className="analysis-file">
+              <span className="file-icon">PDF</span>
+              <div>
+                <strong>{result.filename || "Resume"}</strong>
+                <small>Analysis completed successfully</small>
+              </div>
             </div>
-          )}
-        </div>
+          </div>
 
-        {/* ================================= */}
-        {/* Overall Score */}
-        {/* ================================= */}
+          {/* Overall Score */}
+          <div className="overall-score-card">
 
-        <div className="overall-score-card">
-          <div className="overall-score-content">
-            <span className="score-label">Overall Resume Score</span>
+            <div className="overall-score-ring">
+              <svg viewBox="0 0 120 120">
 
-            <div
-              className={`overall-score ${scoreClass(
-                analysis.overall_score || 0,
-              )}`}
-            >
-              {analysis.overall_score || 0}
+                <circle
+                  className="score-ring-bg"
+                  cx="60"
+                  cy="60"
+                  r="50"
+                />
+
+                <circle
+                  className="score-ring-progress"
+                  cx="60"
+                  cy="60"
+                  r="50"
+                  style={{
+                    strokeDasharray: `${overallScore * 3.14} 314`,
+                  }}
+                />
+
+              </svg>
+
+              <div className="overall-score-value">
+                <strong>{overallScore}</strong>
+                <span>/100</span>
+              </div>
             </div>
 
-            <span className="score-out-of">out of 100</span>
+            <div className="overall-score-info">
+              <span>Overall Score</span>
+              <strong>{getScoreLabel(overallScore)}</strong>
+              <small>
+                Based on multiple resume quality factors
+              </small>
+            </div>
+
           </div>
 
-          <div className="score-summary">
-            <h3>
-              {analysis.summary ||
-                "Your resume has been analyzed successfully."}
-            </h3>
-          </div>
-        </div>
+        </section>
 
-        {/* ================================= */}
         {/* Score Cards */}
-        {/* ================================= */}
+        <section className="analysis-score-grid">
 
-        <section>
-          <h2 className="section-heading">Score Breakdown</h2>
+          <ScoreCard
+            title="ATS Compatibility"
+            score={atsScore}
+            description="How easily applicant tracking systems can read your resume."
+          />
 
-          <div className="analysis-score-grid">
-            <div className="analysis-score-card">
-              <span>ATS Score</span>
+          <ScoreCard
+            title="Content Quality"
+            score={analysis.content_score}
+            description="Strength and relevance of the resume content."
+          />
 
-              <strong>{analysis.ats_score || 0}%</strong>
+          <ScoreCard
+            title="Structure"
+            score={analysis.structure_score}
+            description="Organization and clarity of your resume sections."
+          />
 
-              <div className="score-bar">
-                <div
-                  style={{
-                    width: `${analysis.ats_score || 0}%`,
-                  }}
-                />
-              </div>
-            </div>
+          <ScoreCard
+            title="Readability"
+            score={analysis.readability_score}
+            description="How clear and easy your resume is to read."
+          />
 
-            <div className="analysis-score-card">
-              <span>Content Score</span>
-
-              <strong>{analysis.content_score || 0}%</strong>
-
-              <div className="score-bar">
-                <div
-                  style={{
-                    width: `${analysis.content_score || 0}%`,
-                  }}
-                />
-              </div>
-            </div>
-
-            <div className="analysis-score-card">
-              <span>Structure Score</span>
-
-              <strong>{analysis.structure_score || 0}%</strong>
-
-              <div className="score-bar">
-                <div
-                  style={{
-                    width: `${analysis.structure_score || 0}%`,
-                  }}
-                />
-              </div>
-            </div>
-
-            <div className="analysis-score-card">
-              <span>Readability</span>
-
-              <strong>{analysis.readability_score || 0}%</strong>
-
-              <div className="score-bar">
-                <div
-                  style={{
-                    width: `${analysis.readability_score || 0}%`,
-                  }}
-                />
-              </div>
-            </div>
-
-            <div className="analysis-score-card">
-              <span>Quantifiable Achievements</span>
-
-              <strong>{analysis.quantifiable_score || 0}%</strong>
-
-              <div className="score-bar">
-                <div
-                  style={{
-                    width: `${analysis.quantifiable_score || 0}%`,
-                  }}
-                />
-              </div>
-            </div>
-          </div>
         </section>
 
-        {/* ================================= */}
-        {/* Strengths & Weaknesses */}
-        {/* ================================= */}
+        {/* Summary */}
+        {analysis.summary && (
+          <section className="analysis-section summary-section">
 
-        <div className="analysis-two-column">
-          <section className="analysis-section">
-            <h2 className="section-heading">Strengths</h2>
+            <div className="section-heading">
+              <div className="section-icon purple">
+                ✦
+              </div>
 
-            <div className="analysis-list-card">
-              {analysis.strengths?.length > 0 ? (
-                <ul>
-                  {analysis.strengths.map((strength, index) => (
-                    <li key={index}>✓ {strength}</li>
-                  ))}
-                </ul>
-              ) : (
-                <p>No specific strengths identified.</p>
-              )}
-            </div>
-          </section>
-
-          <section className="analysis-section">
-            <h2 className="section-heading">Weaknesses</h2>
-
-            <div className="analysis-list-card">
-              {analysis.weaknesses?.length > 0 ? (
-                <ul>
-                  {analysis.weaknesses.map((weakness, index) => (
-                    <li key={index}>{weakness}</li>
-                  ))}
-                </ul>
-              ) : (
-                <p>No major weaknesses identified.</p>
-              )}
-            </div>
-          </section>
-        </div>
-
-        {/* ================================= */}
-        {/* Skills */}
-        {/* ================================= */}
-
-        <section>
-          <h2 className="section-heading">Skills Analysis</h2>
-
-          <div className="analysis-two-column">
-            <div className="analysis-list-card">
-              <h3>Technical Skills</h3>
-
-              <div className="skill-tags">
-                {analysis.technical_skills?.length > 0 ? (
-                  analysis.technical_skills.map((skill, index) => (
-                    <span className="skill-tag" key={index}>
-                      {skill}
-                    </span>
-                  ))
-                ) : (
-                  <p>No technical skills detected.</p>
-                )}
+              <div>
+                <h2>AI Summary</h2>
+                <p>Quick overview of your resume performance</p>
               </div>
             </div>
 
-            <div className="analysis-list-card">
-              <h3>Soft Skills</h3>
-
-              <div className="skill-tags">
-                {analysis.soft_skills?.length > 0 ? (
-                  analysis.soft_skills.map((skill, index) => (
-                    <span className="skill-tag soft-skill" key={index}>
-                      {skill}
-                    </span>
-                  ))
-                ) : (
-                  <p>No soft skills detected.</p>
-                )}
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* ================================= */}
-        {/* Missing Keywords */}
-        {/* ================================= */}
-
-        <section>
-          <h2 className="section-heading">Missing Keywords</h2>
-
-          <div className="analysis-list-card">
-            {analysis.missing_keywords?.length > 0 ? (
-              <div className="keyword-tags">
-                {analysis.missing_keywords.map((keyword, index) => (
-                  <span className="keyword-tag" key={index}>
-                    {keyword}
-                  </span>
-                ))}
-              </div>
-            ) : (
-              <p>No important missing keywords detected.</p>
-            )}
-          </div>
-        </section>
-
-        {/* ================================= */}
-        {/* ATS Analysis */}
-        {/* ================================= */}
-
-        <section>
-          <h2 className="section-heading">ATS Analysis</h2>
-
-          <div className="analysis-two-column">
-            <div className="analysis-list-card">
-              <h3>ATS Issues</h3>
-
-              {analysis.ats_issues?.length > 0 ? (
-                <ul>
-                  {analysis.ats_issues.map((issue, index) => (
-                    <li key={index}>{issue}</li>
-                  ))}
-                </ul>
-              ) : (
-                <p>No major ATS issues detected.</p>
-              )}
+            <div className="summary-content">
+              {analysis.summary}
             </div>
 
-            <div className="analysis-list-card">
-              <h3>ATS Suggestions</h3>
-
-              {analysis.ats_suggestions?.length > 0 ? (
-                <ul>
-                  {analysis.ats_suggestions.map((suggestion, index) => (
-                    <li key={index}>{suggestion}</li>
-                  ))}
-                </ul>
-              ) : (
-                <p>Your resume has good ATS compatibility.</p>
-              )}
-            </div>
-          </div>
-        </section>
-
-        {/* ================================= */}
-        {/* Section Feedback */}
-        {/* ================================= */}
-
-        {analysis.section_feedback && (
-          <section>
-            <h2 className="section-heading">Section-wise Feedback</h2>
-
-            <div className="section-feedback-grid">
-              {Object.entries(analysis.section_feedback).map(
-                ([section, feedback]) => (
-                  <div className="feedback-card" key={section}>
-                    <h3>
-                      {section.charAt(0).toUpperCase() + section.slice(1)}
-                    </h3>
-
-                    <p>{feedback}</p>
-                  </div>
-                ),
-              )}
-            </div>
           </section>
         )}
 
-        {/* ================================= */}
-        {/* Improvements */}
-        {/* ================================= */}
+        {/* Strengths / Weaknesses */}
+        <section className="analysis-two-column">
 
-        <section>
-          <h2 className="section-heading">Recommended Improvements</h2>
+          <div className="analysis-section">
 
-          <div className="improvements-list">
-            {analysis.improvements?.length > 0 ? (
-              analysis.improvements.map((item, index) => (
-                <div className="improvement-card" key={index}>
-                  <div className="improvement-header">
-                    <span className="priority-badge">{item.priority}</span>
+            <div className="section-heading">
+              <div className="section-icon green">
+                ✓
+              </div>
 
-                    <strong>{item.area}</strong>
+              <div>
+                <h2>Strengths</h2>
+                <p>What your resume is doing well</p>
+              </div>
+            </div>
+
+            <div className="analysis-list">
+
+              {strengths.length > 0 ? (
+                strengths.map((item, index) => (
+                  <div className="analysis-list-item success" key={index}>
+                    <span>✓</span>
+                    <p>{item}</p>
                   </div>
-
-                  <p>{item.suggestion}</p>
+                ))
+              ) : (
+                <div className="empty-analysis">
+                  No strengths identified.
                 </div>
-              ))
-            ) : (
-              <p>No additional improvements available.</p>
-            )}
+              )}
+
+            </div>
+
           </div>
+
+
+          <div className="analysis-section">
+
+            <div className="section-heading">
+              <div className="section-icon orange">
+                !
+              </div>
+
+              <div>
+                <h2>Weaknesses</h2>
+                <p>Areas that could be improved</p>
+              </div>
+            </div>
+
+            <div className="analysis-list">
+
+              {weaknesses.length > 0 ? (
+                weaknesses.map((item, index) => (
+                  <div className="analysis-list-item warning" key={index}>
+                    <span>!</span>
+                    <p>{item}</p>
+                  </div>
+                ))
+              ) : (
+                <div className="empty-analysis">
+                  No major weaknesses identified.
+                </div>
+              )}
+
+            </div>
+
+          </div>
+
         </section>
 
-        {/* ================================= */}
-        {/* Action Buttons */}
-        {/* ================================= */}
+        {/* Skills */}
+        <section className="analysis-section">
 
-        <div className="analysis-bottom-actions">
-          <button
-            className="secondary-button"
-            onClick={() => navigate("/history")}
-          >
-            ← View History
-          </button>
+          <div className="section-heading">
+            <div className="section-icon blue">
+              ⚡
+            </div>
 
-          <button className="secondary-button" onClick={handleDownloadReport}>
-            Download Report
-          </button>
+            <div>
+              <h2>Skills Analysis</h2>
+              <p>Skills detected from your resume</p>
+            </div>
+          </div>
 
-          <button
-            className="primary-button"
-            onClick={() => navigate("/job-match")}
-          >
-            Match With Job →
-          </button>
+          <div className="skills-analysis-grid">
 
-          <button
-            className="primary-button"
-            onClick={() => navigate("/upload")}
-          >
-            Analyze Another Resume
-          </button>
-        </div>
-      </div>
+            <div className="skills-column">
+
+              <h3>Technical Skills</h3>
+
+              <div className="skill-tags">
+
+                {technicalSkills.length > 0 ? (
+                  technicalSkills.map((skill, index) => (
+                    <span className="skill-tag technical" key={index}>
+                      {skill}
+                    </span>
+                  ))
+                ) : (
+                  <span className="no-data">
+                    No technical skills detected
+                  </span>
+                )}
+
+              </div>
+
+            </div>
+
+
+            <div className="skills-column">
+
+              <h3>Soft Skills</h3>
+
+              <div className="skill-tags">
+
+                {softSkills.length > 0 ? (
+                  softSkills.map((skill, index) => (
+                    <span className="skill-tag soft" key={index}>
+                      {skill}
+                    </span>
+                  ))
+                ) : (
+                  <span className="no-data">
+                    No soft skills detected
+                  </span>
+                )}
+
+              </div>
+
+            </div>
+
+          </div>
+
+        </section>
+
+        {/* Missing Keywords */}
+        <section className="analysis-section">
+
+          <div className="section-heading">
+            <div className="section-icon red">
+              #
+            </div>
+
+            <div>
+              <h2>Missing Keywords</h2>
+              <p>
+                Keywords that could improve your ATS visibility
+              </p>
+            </div>
+          </div>
+
+          <div className="keyword-container">
+
+            {missingKeywords.length > 0 ? (
+              missingKeywords.map((keyword, index) => (
+                <span className="keyword-tag" key={index}>
+                  {keyword}
+                </span>
+              ))
+            ) : (
+              <div className="empty-analysis">
+                No major missing keywords detected.
+              </div>
+            )}
+
+          </div>
+
+        </section>
+
+        {/* ATS */}
+        <section className="analysis-section ats-section">
+
+          <div className="section-heading">
+
+            <div className="section-icon purple">
+              ATS
+            </div>
+
+            <div>
+              <h2>ATS Compatibility</h2>
+              <p>
+                Applicant Tracking System compatibility analysis
+              </p>
+            </div>
+
+            <div className="ats-score-badge">
+              {atsScore}/100
+            </div>
+
+          </div>
+
+
+          <div className="ats-content">
+
+            <div>
+
+              <h3>Detected Issues</h3>
+
+              <div className="analysis-list">
+
+                {atsIssues.length > 0 ? (
+                  atsIssues.map((issue, index) => (
+                    <div className="analysis-list-item danger" key={index}>
+                      <span>!</span>
+                      <p>{issue}</p>
+                    </div>
+                  ))
+                ) : (
+                  <div className="empty-analysis">
+                    No major ATS issues detected.
+                  </div>
+                )}
+
+              </div>
+
+            </div>
+
+
+            <div>
+
+              <h3>ATS Suggestions</h3>
+
+              <div className="analysis-list">
+
+                {atsSuggestions.length > 0 ? (
+                  atsSuggestions.map((suggestion, index) => (
+                    <div className="analysis-list-item success" key={index}>
+                      <span>✓</span>
+                      <p>{suggestion}</p>
+                    </div>
+                  ))
+                ) : (
+                  <div className="empty-analysis">
+                    No additional suggestions.
+                  </div>
+                )}
+
+              </div>
+
+            </div>
+
+          </div>
+
+        </section>
+
+        {/* Improvements */}
+        <section className="analysis-section">
+
+          <div className="section-heading">
+
+            <div className="section-icon purple">
+              ✦
+            </div>
+
+            <div>
+              <h2>AI Improvement Plan</h2>
+              <p>
+                Prioritized recommendations to strengthen your resume
+              </p>
+            </div>
+
+          </div>
+
+
+          <div className="improvement-list">
+
+            {improvements.length > 0 ? (
+              improvements.map((item, index) => (
+
+                <div className="improvement-card" key={index}>
+
+                  <div className="improvement-number">
+                    {index + 1}
+                  </div>
+
+                  <div className="improvement-content">
+
+                    <div className="improvement-top">
+
+                      <h3>
+                        {item.area || "Resume Improvement"}
+                      </h3>
+
+                      {item.priority && (
+                        <span
+                          className={`priority-badge ${String(
+                            item.priority
+                          ).toLowerCase()}`}
+                        >
+                          {item.priority}
+                        </span>
+                      )}
+
+                    </div>
+
+                    <p>
+                      {item.suggestion || item}
+                    </p>
+
+                  </div>
+
+                </div>
+
+              ))
+            ) : (
+              <div className="empty-analysis">
+                No improvement recommendations available.
+              </div>
+            )}
+
+          </div>
+
+        </section>
+
+        {/* Bottom CTA */}
+        <section className="analysis-bottom-cta">
+
+          <div>
+
+            <span className="cta-label">
+              NEXT STEP
+            </span>
+
+            <h2>
+              Want to see how your resume matches a job?
+            </h2>
+
+            <p>
+              Compare your resume against a job description and
+              discover matched skills, missing keywords and gaps.
+            </p>
+
+          </div>
+
+          <div className="cta-actions">
+
+            <button
+              className="analysis-secondary-btn large"
+              onClick={handleNewAnalysis}
+            >
+              Analyze Another
+            </button>
+
+            <button
+              className="analysis-primary-btn large"
+              onClick={handleJobMatch}
+            >
+              Match With Job →
+            </button>
+
+          </div>
+
+        </section>
+
+      </main>
+
     </div>
   );
 }

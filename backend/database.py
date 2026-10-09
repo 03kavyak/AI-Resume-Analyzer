@@ -80,6 +80,8 @@ class ResumeAnalysis(db.Model):
         db.Integer,
         default=0
     )
+    
+    analysis_json = db.Column(db.Text, nullable=True)
 
     created_at = db.Column(
         db.DateTime,

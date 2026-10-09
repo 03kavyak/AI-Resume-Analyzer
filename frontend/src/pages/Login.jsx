@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import api from "../services/api";
 
 function Login() {
@@ -7,6 +7,8 @@ function Login() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+
+  const [showPassword, setShowPassword] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -37,7 +39,6 @@ function Login() {
         );
       }
 
-      // Save logged-in user
       sessionStorage.setItem(
         "user",
         JSON.stringify(response.data.user)
@@ -59,79 +60,265 @@ function Login() {
           "Could not connect to backend."
         );
       }
+
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="auth-page">
+    <div className="auth-screen">
 
-      <div className="auth-card">
+      {/* ==============================
+          LEFT BRAND PANEL
+      ============================== */}
 
-        <h1>Welcome Back</h1>
+      <div className="auth-brand-panel">
 
-        <p className="auth-subtitle">
-          Login to continue improving your resume.
-        </p>
+        <div className="auth-brand-content">
 
-        <form onSubmit={handleLogin}>
+          <Link
+            to="/"
+            className="auth-logo"
+          >
+            <span className="auth-logo-mark">
+              R
+            </span>
 
-          <div className="form-group">
-            <label>Email</label>
-
-            <input
-              type="email"
-              placeholder="Enter your email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-          </div>
-
-
-          <div className="form-group">
-            <label>Password</label>
-
-            <input
-              type="password"
-              placeholder="Enter your password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-          </div>
+            <span>
+              Resume<span>AI</span>
+            </span>
+          </Link>
 
 
-          {error && (
-            <div className="error-message">
-              {error}
+          <div className="auth-brand-message">
+
+            <div className="auth-brand-badge">
+              AI-POWERED RESUME INTELLIGENCE
             </div>
-          )}
+
+            <h1>
+              Your resume
+              <br />
+              <span>deserves attention.</span>
+            </h1>
+
+            <p>
+              Analyze your resume, improve ATS
+              compatibility, discover missing skills,
+              and match your profile with the right
+              opportunities.
+            </p>
+
+          </div>
 
 
-          <button
-            type="submit"
-            className="primary-button auth-button"
-            disabled={loading}
+          <div className="auth-benefits">
+
+            <div>
+              <span>✓</span>
+              Smart resume analysis
+            </div>
+
+            <div>
+              <span>✓</span>
+              ATS compatibility insights
+            </div>
+
+            <div>
+              <span>✓</span>
+              Job description matching
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+
+
+      {/* ==============================
+          LOGIN PANEL
+      ============================== */}
+
+      <div className="auth-form-panel">
+
+        <div className="auth-form-wrapper">
+
+          <Link
+            to="/"
+            className="auth-back-home"
           >
-            {loading ? "Logging In..." : "Login"}
-          </button>
-
-        </form>
+            ← Back to home
+          </Link>
 
 
-        <p className="auth-footer">
+          <div className="auth-mobile-logo">
 
-          Don't have an account?{" "}
+            <span className="auth-logo-mark">
+              R
+            </span>
 
-          <button
-            type="button"
-            className="link-button"
-            onClick={() => navigate("/signup")}
+            <span>
+              Resume<span>AI</span>
+            </span>
+
+          </div>
+
+
+          <div className="auth-heading">
+
+            <h1>
+              Welcome back
+            </h1>
+
+            <p>
+              Sign in to continue improving
+              your resume.
+            </p>
+
+          </div>
+
+
+          <form
+            onSubmit={handleLogin}
+            className="professional-auth-form"
           >
-            Sign Up
-          </button>
 
-        </p>
+            {/* EMAIL */}
+
+            <div className="professional-form-group">
+
+              <label htmlFor="login-email">
+                Email address
+              </label>
+
+              <input
+                id="login-email"
+                type="email"
+                placeholder="you@example.com"
+                value={email}
+                onChange={(e) =>
+                  setEmail(e.target.value)
+                }
+                autoComplete="email"
+              />
+
+            </div>
+
+
+            {/* PASSWORD */}
+
+            <div className="professional-form-group">
+
+              <div className="form-label-row">
+
+                <label htmlFor="login-password">
+                  Password
+                </label>
+
+              </div>
+
+              <div className="password-input-wrapper">
+
+                <input
+                  id="login-password"
+                  type={
+                    showPassword
+                      ? "text"
+                      : "password"
+                  }
+                  placeholder="Enter your password"
+                  value={password}
+                  onChange={(e) =>
+                    setPassword(e.target.value)
+                  }
+                  autoComplete="current-password"
+                />
+
+                <button
+                  type="button"
+                  className="password-toggle"
+                  onClick={() =>
+                    setShowPassword(
+                      !showPassword
+                    )
+                  }
+                  aria-label={
+                    showPassword
+                      ? "Hide password"
+                      : "Show password"
+                  }
+                >
+                  {showPassword ? "Hide" : "Show"}
+                </button>
+
+              </div>
+
+            </div>
+
+
+            {/* ERROR */}
+
+            {error && (
+
+              <div className="auth-alert auth-error">
+
+                <span>!</span>
+
+                <p>{error}</p>
+
+              </div>
+
+            )}
+
+
+            {/* SUBMIT */}
+
+            <button
+              type="submit"
+              className="professional-auth-button"
+              disabled={loading}
+            >
+
+              {loading ? (
+                <>
+                  <span className="auth-spinner"></span>
+                  Signing in...
+                </>
+              ) : (
+                <>
+                  Sign in
+                  <span>→</span>
+                </>
+              )}
+
+            </button>
+
+          </form>
+
+
+          <div className="auth-divider">
+            <span></span>
+            <p>New to ResumeAI?</p>
+            <span></span>
+          </div>
+
+
+          <Link
+            to="/signup"
+            className="auth-outline-button"
+          >
+            Create an account
+          </Link>
+
+
+          <p className="auth-security-note">
+            Your resume data is used only to
+            generate your analysis and insights.
+          </p>
+
+        </div>
 
       </div>
 
